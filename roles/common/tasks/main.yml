@@ -1,0 +1,19 @@
+---
+# Update cache
+
+- name: Update all package
+  apt: update_cache=yes
+
+# Installation dependencies
+
+- name: Install Dependecies
+  apt: name={{ item }} state=present
+  with_items:
+   - git
+   - python-geoip
+   - python-mysqldb
+   - python-twisted
+   - wget
+   - isc-dhcp-server 
+  
+  
