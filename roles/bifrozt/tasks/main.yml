@@ -14,3 +14,18 @@
   template: src=isc-dhcp-server.j2 dest=/etc/default/isc-dhcp-server.bifrozt
   notify:
   - restart dhcp
+
+- name: Create iptables in logrotate.d
+  template: src=iptables.j2 dest=/etc/logrotate.d/iptables.bifrozt
+
+- name: Create sysctl.conf
+  template: src=sysctl.conf.j2 dest=/etc/sysctl.conf.bifrozt
+
+- name: Create interfaces
+  template: src=interfaces.j2 dest=/etc/network/interfaces.bifrozt
+  
+- name: Create ipv4hater
+  template: src=ipv4hater.j2 dest=/etc/network/ipv4hater.bifrozt
+  
+- name: Create ipv6hater
+  template: src=ipv6hater.j2 dest=/etc/network/ipv6hater.bifrozt  
