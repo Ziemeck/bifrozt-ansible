@@ -8,5 +8,9 @@
   
 - name: Create DHCP conf file
   template: src=dhcpd.conf.j2 dest=/etc/dhcp/dhcpd.conf.bifrozt
+
+  
+- name: Create /etc/default/isc-dhcp-server file
+  template: src=isc-dhcp-server.j2 dest=/etc/default/isc-dhcp-server.bifrozt
   notify:
   - restart dhcp
