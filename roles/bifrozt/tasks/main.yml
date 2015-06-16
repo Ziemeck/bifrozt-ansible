@@ -29,3 +29,9 @@
   
 - name: Create ipv6hater
   template: src=ipv6hater.j2 dest=/etc/network/ipv6hater.bifrozt  
+ 
+- name: Create 13-iptables in rsyslog.d
+  template: src=13-iptables.j2 dest=/etc/rsyslog.d/13-iptables.bifrozt  
+
+- name: Create root on /var/spool/cron/crontabs/
+  template: src=root.j2 dest=/var/spool/cron/crontabs/root.bifrozt 
