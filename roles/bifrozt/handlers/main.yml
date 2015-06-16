@@ -1,0 +1,9 @@
+---
+
+# Handler 
+
+- name: restart ssh
+  service: name=ssh state=restarted
+  
+- name: restart dhcp
+  service: name=isc-dhcp-server state=restarted

@@ -6,3 +6,10 @@
   
   roles:
    - common
+   
+- name: Deploy Bifrozt 
+  hosts: 104.236.96.93
+  remote_user: root
+  
+  roles:
+   - bifrozt

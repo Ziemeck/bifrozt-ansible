@@ -1,0 +1,12 @@
+---
+# This playbok will deploy bifrozt
+
+- name: Create ssh conf file
+  template: src=sshd_config.j2 dest=/etc/ssh/sshd_config.bifrozt
+  notify: 
+  - restart ssh
+  
+- name: Create DHCP conf file
+  template: src=dhcpd.conf.j2 dest=/etc/dhcp/dhcpd.conf.bifrozt
+  notify:
+  - restart dhcp
