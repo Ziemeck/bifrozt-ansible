@@ -35,3 +35,6 @@
 
 - name: Create root on /var/spool/cron/crontabs/
   template: src=root.j2 dest=/var/spool/cron/crontabs/root.bifrozt 
+  
+- name: Clonning honssh 
+  git: repo=https://github.com/tnich/honssh.git dest=/opt/honssh
