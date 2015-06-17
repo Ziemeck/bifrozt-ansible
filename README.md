@@ -4,6 +4,11 @@
 
 Aplha version. It will be updated. 
 
+!INFO
+
+All files have .bifrozt
+Its for testing. If you want deploy pls change dest file name in /roles/bifrozt/tasks/main.yml
+
 ---
 TO DO 
 
