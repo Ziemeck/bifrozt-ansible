@@ -1,0 +1,12 @@
+---
+- name: Installaing dependencies
+  hosts: bifrozt
+  remote_user: root
+  roles:
+   - common
+   
+- name: Deploying Bifrozt 
+  hosts: bifrozt
+  remote_user: root
+  roles:
+   - bifrozt

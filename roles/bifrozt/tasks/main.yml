@@ -1,0 +1,116 @@
+---
+# This playbok will deploy bifrozt,
+
+- name: Configuring sshd to run on tcp/60777
+  template: src=etc/ssh/sshd_config dest=/etc/ssh/sshd_config
+  notify: 
+  - restart ssh
+
+- name: Setting permissions on /etc/ssh/sshd_config 
+  file: path=/etc/ssh/sshd_config owner=root group=root mode=0644
+  
+- name: Setting up isc-dhcp-server configuration
+  template: src=etc/dhcp/dhcpd.conf dest=/etc/dhcp/dhcpd.conf
+
+- name: Setting permissions on /etc/dhcp/dhcpd.conf
+  file: path=/etc/dhcp/dhcpd.conf owner=root group=root mode=0644
+
+- name: Configuring isc-dhcp-server to run on eth1
+  template: src=etc/default/isc-dhcp-server dest=/etc/default/isc-dhcp-server
+  notify:
+  - restart dhcp
+
+- name: Setting permissions on /etc/default/isc-dhcp-server
+  file: path=/etc/default/isc-dhcp-server owner=root group=root mode=0644
+
+- name: Creating logrotation for firewall.log
+  template: src=etc/logrotate.d/iptables dest=/etc/logrotate.d/iptables
+
+- name: Setting permissions on /etc/logrotate.d/iptables
+  file: path=/etc/logrotate.d/iptables owner=root group=root mode=0644
+
+- name: Costumizing sysctl.conf
+  template: src=etc/sysctl.conf dest=/etc/sysctl.conf
+
+- name: Setting permissions on /etc/sysctl.conf
+  file: path=/etc/sysctl.conf owner=root group=root mode=0600
+
+- name: Configuring network interfaces
+  template: src=etc/network/interfaces dest=/etc/network/interfaces
+
+- name: Setting permissions on /etc/network/interfaces
+  file: path=/etc/network/interfaces owner=root group=root mode=0644
+
+- name: Setting up iptables for IPv4
+  template: src=etc/network/ipv4hater dest=/etc/network/ipv4hater
+
+- name: Setting permissions on /etc/network/ipv4hater
+  file: path=/etc/network/ipv4hater owner=root group=root mode=0644
+
+- name: Setting up iptables for IPv6
+  template: src=etc/network/ipv6hater dest=/etc/network/ipv6hater 
+ 
+- name: Setting permissions on /etc/network/ipv6hater
+  file: path=/etc/network/ipv6hater owner=root group=root mode=0644
+
+- name: Creating rsyslog for iptables
+  template: src=etc/rsyslog.d/13-iptables dest=/etc/rsyslog.d/13-iptables  
+
+- name: Setting permissions on /etc/rsyslog.d/13-iptables
+  file: path=/etc/rsyslog.d/13-iptables owner=root group=root mode=0644
+
+- name: Setting custom interval for rotating firewall.log
+  template: src=var/spool/cron/crontabs/root dest=/var/spool/cron/crontabs/root 
+
+- name: Setting correct permissions on /var/log/firewall.log
+  file: path=/var/log/firewall.log state=touch owner=root group=adm mode=0644
+
+- name: Setting permissions on /var/spool/cron/crontabs/root
+  file: path=/var/spool/cron/crontabs/root owner=root group=root mode=0600
+
+- name: Cloning the latest version of HonSSH
+  git: repo=https://github.com/tnich/honssh.git dest=/opt/honssh
+
+- name: Removing default honsshctrl.sh
+  file: path=/opt/honssh/honsshctrl.sh state=absent
+
+- name: Installing custom honsshctrl into PATH
+  template: src=usr/local/bin/honsshctrl dest=/usr/local/bin/honsshctrl
+
+- name: Setting permissions on /usr/local/bin/honsshctrl
+  file: path=/usr/local/bin/honsshctrl owner=root group=root mode=0755
+
+- name: Preparing HonSSH to start at boot
+  template: src=etc/rc.local dest=/etc/rc.local
+
+- name: Setting permissions on /etc/rc.local
+  file: path=/etc/rc.local owner=root group=root mode=0755
+
+- name: Preparing to install custom Python modules
+  file: path=/usr/lib/python2.7/dist-packages/bzlib state=directory owner=root group=root mode=0755
+
+- name: Installing Python modules
+  template: src={{ item.src }} dest={{ item.dest }}
+  with_items:
+    - { src: 'usr/lib/python2.7/dist-packages/bzlib/__init__.py', dest: '/usr/lib/python2.7/dist-packages/bzlib/__init__.py' } 
+    - { src: 'usr/lib/python2.7/dist-packages/bzlib/files.py', dest: '/usr/lib/python2.7/dist-packages/bzlib/files.py' }
+    - { src: 'usr/lib/python2.7/dist-packages/bzlib/geoloc.py', dest: '/usr/lib/python2.7/dist-packages/bzlib/geoloc.py' }
+    - { src: 'usr/lib/python2.7/dist-packages/bzlib/sendto.py', dest: '/usr/lib/python2.7/dist-packages/bzlib/sendto.py' }
+
+- name: Installing Bifrozt tools
+  template: src=usr/local/bin/auth_info dest=/usr/local/bin/auth_info
+
+- name: Setting permissions on Bifrozt tools
+  file: path=/usr/local/bin/auth_info owner=root group=root mode=0755
+
+- name: Preparing to download GeoLite2-City database from Maxmind
+  file: path=/etc/geoip2 state=directory owner=root group=root mode=0755
+
+- name: Installing latests version of GeoLite2-City database from Maxmind
+  get_url: url=http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz dest=/etc/geoip2/GeoLite2-City.mmdb.gz mode=0644
+
+- name: Unpacking GeoLite2-City database from Maxmind
+  command: gunzip /etc/geoip2/GeoLite2-City.mmdb.gz
+
+- name: Rebooting Bifrozt
+  command: reboot
