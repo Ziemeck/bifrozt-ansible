@@ -2,7 +2,7 @@
 
 ---
 
-This was forked from Ziemeck (https://github.com/Ziemeck/bifrozt-ansible) who converted my original Bifrozt project into and Ansible playbook.
+This was forked from Ziemeck (https://github.com/Ziemeck/bifrozt-ansible) who converted my original Bifrozt project into an Ansible playbook.
 
 ---
 
