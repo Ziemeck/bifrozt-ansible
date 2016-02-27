@@ -1,2 +1,0 @@
-# m h  dom mon dow   command
-*/3  *   *    *    *    /usr/sbin/logrotate /etc/logrotate.d/iptables >/dev/null 2>&1
