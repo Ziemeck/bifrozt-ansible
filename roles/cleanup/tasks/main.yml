@@ -10,6 +10,4 @@
 
 - name: Starting purge of Ansible software
   apt: name=ansible state=absent
-
-- name: System going down for reboot
-  command: reboot
+  
