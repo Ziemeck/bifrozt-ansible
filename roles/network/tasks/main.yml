@@ -1,0 +1,42 @@
+--- # Network related tasks
+
+- name: Configuring sshd to run on tcp/60777
+  template: src=etc/ssh/sshd_config dest=/etc/ssh/sshd_config
+  notify: 
+  - restart ssh
+
+- name: Setting permissions on /etc/ssh/sshd_config 
+  file: path=/etc/ssh/sshd_config owner=root group=root mode=0644
+  
+- name: Setting up isc-dhcp-server configuration
+  template: src=etc/dhcp/dhcpd.conf dest=/etc/dhcp/dhcpd.conf
+
+- name: Setting permissions on /etc/dhcp/dhcpd.conf
+  file: path=/etc/dhcp/dhcpd.conf owner=root group=root mode=0644
+
+- name: Configuring isc-dhcp-server to run on eth1
+  template: src=etc/default/isc-dhcp-server dest=/etc/default/isc-dhcp-server
+  notify:
+  - restart dhcp
+
+- name: Setting permissions on /etc/default/isc-dhcp-server
+  file: path=/etc/default/isc-dhcp-server owner=root group=root mode=0644
+
+- name: Configuring network interfaces
+  template: src=etc/network/interfaces dest=/etc/network/interfaces
+
+- name: Setting permissions on /etc/network/interfaces
+  file: path=/etc/network/interfaces owner=root group=root mode=0644
+
+- name: Setting up iptables for IPv4
+  template: src=etc/network/ipv4hater dest=/etc/network/ipv4hater
+
+- name: Setting permissions on /etc/network/ipv4hater
+  file: path=/etc/network/ipv4hater owner=root group=root mode=0644
+
+- name: Setting up iptables for IPv6
+  template: src=etc/network/ipv6hater dest=/etc/network/ipv6hater 
+ 
+- name: Setting permissions on /etc/network/ipv6hater
+  file: path=/etc/network/ipv6hater owner=root group=root mode=0644
+

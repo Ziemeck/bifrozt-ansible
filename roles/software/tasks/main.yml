@@ -1,0 +1,31 @@
+--- # Installation dependencies
+- name: Running apt-get update
+  apt: update_cache=yes
+
+- name: Running apt-get upgrade
+  apt: upgrade=dist
+
+- name: Installing dependecies from official apt repo
+  apt: name={{ item }} state=present
+  with_items:
+   - git
+   - htop
+   - isc-dhcp-server
+   - ngrep
+   - python-geoip
+   - python-mysqldb
+   - python-pip
+   - python-twisted
+   - tcpdump
+   - tcpflow
+   - tmux
+   - vim
+   - wget
+   - whois
+
+- name: Installing dependencies from pip
+  pip: name={{ item }} state=present
+  with_items:
+    - geoip2
+    - requests
+

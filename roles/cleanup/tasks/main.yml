@@ -1,0 +1,15 @@
+---
+# Clean up tasks
+- name: Removing contents of /root/.ssh
+  file: path={{ item }} state=absent
+  with_items:
+  - /root/.ssh/authorized_keys
+  - /root/.ssh/id_rsa
+  - /root/.ssh/id_rsa.pub
+  - /root/.ssh/known_hosts
+
+- name: Starting purge of Ansible software
+  apt: name=ansible state=absent
+
+- name: System going down for reboot
+  command: reboot

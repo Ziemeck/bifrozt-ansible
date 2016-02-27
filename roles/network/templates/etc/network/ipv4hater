@@ -1,0 +1,165 @@
+#
+#   Copyright (c) 2016, Are Hansen - Honeypot Development.
+# 
+#   All rights reserved.
+# 
+#   Redistribution and use in source and binary forms, with or without modification, are
+#   permitted provided that the following conditions are met:
+#
+#   1. Redistributions of source code must retain the above copyright notice, this list
+#   of conditions and the following disclaimer.
+# 
+#   2. Redistributions in binary form must reproduce the above copyright notice, this
+#   list of conditions and the following disclaimer in the documentation and/or other
+#   materials provided with the distribution.
+# 
+#   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND AN
+#   EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+#   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
+#   SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+#   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+#   TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+#   BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+#   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+#   WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#   Version: 0.4.4
+#
+#
+*nat
+:PREROUTING ACCEPT [2:478]
+:INPUT ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+-A POSTROUTING -o eth0 -j MASQUERADE
+COMMIT
+#
+*mangle
+:PREROUTING ACCEPT [46:3510]
+:INPUT ACCEPT [46:3510]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [25:2856]
+:POSTROUTING ACCEPT [25:2856]
+COMMIT
+#
+*filter
+:INPUT DROP [2:478]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:LOGALLOW - [0:0]
+:LOGNDROP - [0:0]
+-A INPUT -i lo -j ACCEPT
+-A INPUT -i eth1 -m pkttype --pkt-type broadcast -j ACCEPT
+#
+# Allow traffic from tcp/22 
+#
+-A INPUT -i eth1 -p tcp -m tcp --sport 22 -j ACCEPT
+-A INPUT -i eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+#
+# Allow traffic to tcp/22 that (intercepted by HonSSH)
+#
+-A INPUT -i eth0 -p tcp -m tcp --dport 22 -j ACCEPT
+-A INPUT -i eth0 -p tcp -m tcp --dport 60777 -j ACCEPT
+-A FORWARD -i eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A OUTPUT -o eth0 -m state --state NEW,RELATED,ESTABLISHED -j ACCEPT
+#
+# Deny invalid from Honeypot
+#
+-A FORWARD -i eth1 -m state --state INVALID -j LOGNDROP
+#
+#
+# Data control section
+#
+# These rules are created to allow traffic from the internal network, where the honeypots are located.
+# The rules will accept and log all (LOGALLOW) outbound traffic within certain limits, depending on protocol (destination port).
+# If the outbound traffic for one of these protocols exceeds these limits it will be dropped and logged (LOGNDROP)
+#
+#
+# ICMP
+#
+-A FORWARD -i eth1 -p icmp -m icmp --icmp-type 8 -m recent --set --name PING --mask 255.255.255.255 --rsource -m limit --limit 2/sec --limit-burst 2 -j LOGALLOW
+-A FORWARD -i eth1 -p icmp -m icmp --icmp-type 8 -m recent --update --seconds 1 --hitcount 1 --name PING --mask 255.255.255.255 --rsource -j LOGNDROP
+-A FORWARD -i eth1 -p icmp -m icmp --icmp-type 8 -m connlimit --connlimit-above 2 --connlimit-mask 32 --connlimit-saddr -j LOGNDROP
+#
+# FTP
+#
+-A FORWARD -i eth1 -p tcp -m tcp --dport 20:21 -m state --state NEW -m recent --set --name FTP --mask 255.255.255.255 --rsource -m limit --limit 12/sec --limit-burst 7 -j LOGALLOW
+-A FORWARD -i eth1 -p tcp -m tcp --dport 20:21 -m state --state NEW -m recent --update --seconds 15 --hitcount 1 --name FTP --mask 255.255.255.255 --rsource -j LOGNDROP
+-A FORWARD -i eth1 -p tcp -m tcp --dport 20:21 -m connlimit --connlimit-above 2 --connlimit-mask 32 --connlimit-saddr -j LOGNDROP
+#
+# Telnet
+#
+-A FORWARD -i eth1 -p tcp -m tcp --dport 23 -m state --state NEW -m recent --set --name TELNET --mask 255.255.255.255 --rsource -m limit --limit 12/sec --limit-burst 7 -j LOGALLOW
+-A FORWARD -i eth1 -p tcp -m tcp --dport 23 -m state --state NEW -m recent --update --seconds 15 --hitcount 1 --name TELNET --mask 255.255.255.255 --rsource -j LOGNDROP
+-A FORWARD -i eth1 -p tcp -m tcp --dport 23 -m connlimit --connlimit-above 2 --connlimit-mask 32 --connlimit-saddr -j LOGNDROP
+#
+# DNS
+#
+-A FORWARD -i eth1 -p udp -m udp --dport 53 -m state --state NEW -m recent --set --name DNS --mask 255.255.255.255 --rsource -m limit --limit 20/sec --limit-burst 10 -j ACCEPT
+-A FORWARD -i eth1 -p udp -m udp --dport 53 -m state --state NEW -m recent --update --seconds 15 --hitcount 1 --name DNS --mask 255.255.255.255 --rsource -j LOGNDROP
+-A FORWARD -i eth1 -p udp -m udp --dport 53 -m connlimit --connlimit-above 8 --connlimit-mask 32 --connlimit-saddr -j LOGNDROP
+#
+# HTTP
+#
+-A FORWARD -i eth1 -p tcp -m tcp --dport 80 -m state --state NEW -m recent --set --name HTTP --mask 255.255.255.255 --rsource -m limit --limit 45/sec --limit-burst 100 -j LOGALLOW
+-A FORWARD -i eth1 -p tcp -m tcp --dport 80 -m state --state NEW -m recent --update --seconds 15 --hitcount 2 --name HTTP --mask 255.255.255.255 --rsource -j LOGNDROP
+-A FORWARD -i eth1 -p tcp -m tcp --dport 80 -m connlimit --connlimit-above 2 --connlimit-mask 32 --connlimit-saddr -j LOGNDROP
+#
+# HTTPS
+#
+-A FORWARD -i eth1 -p tcp -m tcp --dport 443 -m state --state NEW -m recent --set --name HTTPS --mask 255.255.255.255 --rsource -m limit --limit 20/sec --limit-burst 10 -j LOGALLOW
+-A FORWARD -i eth1 -p tcp -m tcp --dport 443 -m state --state NEW -m recent --update --seconds 15 --hitcount 1 --name HTTPS --mask 255.255.255.255 --rsource -j LOGNDROP
+-A FORWARD -i eth1 -p tcp -m tcp --dport 443 -m connlimit --connlimit-above 2 --connlimit-mask 32 --connlimit-saddr -j LOGNDROP
+#
+# OSSEC
+#
+#   Uncomment this line if you have installed the ossec-agent on your honeypot(s)
+#
+# -A FORWARD -i eth1 -p udp -m udp --dport 1514 -m recent --set --name OSSEC --mask 255.255.255.255 -j LOGALLOW
+#
+# IRC
+#
+-A FORWARD -i eth1 -p tcp -m tcp --dport 6660:6667 -m state --state NEW -m recent --set --name IRC --mask 255.255.255.255 --rsource -m limit --limit 40/sec --limit-burst 20 -j LOGALLOW
+-A FORWARD -i eth1 -p tcp -m tcp --dport 6660:6667 -m state --state NEW -m recent --update --seconds 5 --hitcount 2 --name IRC --mask 255.255.255.255 --rsource -j LOGNDROP
+-A FORWARD -i eth1 -p tcp -m tcp --dport 6660:6667 -m connlimit --connlimit-above 3 --connlimit-mask 32 --connlimit-saddr -j LOGNDROP
+#
+# HTTP-Alt
+#
+-A FORWARD -i eth1 -p tcp -m tcp --dport 8080:8081 -m state --state NEW -m recent --set --name HTTP-ALT --mask 255.255.255.255 --rsource -m limit --limit 20/sec --limit-burst 10 -j LOGALLOW
+-A FORWARD -i eth1 -p tcp -m tcp --dport 8080:8081 -m state --state NEW -m recent --update --seconds 15 --hitcount 1 --name HTTP-ALT --mask 255.255.255.255 --rsource -j LOGNDROP
+-A FORWARD -i eth1 -p tcp -m tcp --dport 8080:8081 -m connlimit --connlimit-above 2 --connlimit-mask 32 --connlimit-saddr -j LOGNDROP
+#
+# Any UDP traffic that we havent defined already
+#
+-A FORWARD -i eth1 -p udp -m udp ! --dport 53 -m state --state NEW -m recent --set --name OTHER-UDP --mask 255.255.255.255 --rsource -m limit --limit 12/min --limit-burst 10 -m multiport ! --dports 1514 -j LOGALLOW
+-A FORWARD -i eth1 -p udp -m udp ! --dport 53 -m state --state NEW -m recent --update --seconds 60 --hitcount 1 --name OTHER-UDP --mask 255.255.255.255 --rsource -m multiport ! --dports 1514 -j LOGNDROP
+-A FORWARD -i eth1 -p udp -m udp ! --dport 53 -m connlimit --connlimit-above 2 --connlimit-mask 32 --connlimit-saddr -j LOGNDROP
+#
+# Any TCP traffic that we havent defined already
+#
+-A FORWARD -i eth1 -p tcp -m tcp -m state --state NEW -m recent --set --name OTHER-TCP --mask 255.255.255.255 --rsource -m limit --limit 60/min --limit-burst 20 -m multiport ! --dports 20:21,23,80,443,6660:6667,8080:8081 -j LOGALLOW
+-A FORWARD -i eth1 -p tcp -m tcp -m state --state NEW -m recent --update --seconds 60 --hitcount 1 --name OTHER-TCP --mask 255.255.255.255 --rsource -m multiport ! --dports 20:21,23,80,443,6660:6667,8080:8081 -j LOGNDROP
+-A FORWARD -i eth1 -p tcp -m tcp -m connlimit --connlimit-above 2 --connlimit-mask 32 --connlimit-saddr -m multiport ! --dports 20:21,23,80,443,6660:6667,8080:8081 -j LOGNDROP
+-A FORWARD -i eth1 -p icmp -m icmp ! --icmp-type 8 -j LOGNDROP
+#
+# Self explanatory...
+#
+-A OUTPUT -o lo -j ACCEPT
+-A OUTPUT -o eth1 -j ACCEPT
+-A OUTPUT -o eth0 -j ACCEPT
+#
+#
+# This defines how much we should log.
+# The limits here are nothing but my personal preference, but i would strongly recommend that you only increase these limits if theres a
+# good reason to do so. I have seen iptables logging more than 90000 lines per second when my own honeypot was used in a DDoS attack.
+# Aprox. 95% of DDoS attack itself was blocked by the firewall rules but, my poor Bifrozt machine had 0% free space left on the /var/log
+# partition :)
+# 
+# A visualized example this rule set can be found here: https://www.youtube.com/watch?v=eBhoGWDOjvw
+#
+#
+-A LOGALLOW -j LOG --log-prefix "BIFROZT - ALLOW " -m limit --limit 10/s
+-A LOGALLOW -j ACCEPT
+-A LOGNDROP -j LOG --log-prefix "BIFROZT - BLOCK " -m limit --limit 10/s
+-A LOGNDROP -j DROP
+COMMIT
