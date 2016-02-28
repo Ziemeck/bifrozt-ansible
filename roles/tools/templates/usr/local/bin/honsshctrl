@@ -48,6 +48,9 @@
 #	I.E.
 #	/bin/bash /usr/local/bin/honsshctrl daemon
 #
+#   - 1.2.7
+#   Corrected an issue where the script attempts to read files using the wrong path.
+#
 #   --------------------------------------------------------------
 #
 #
@@ -64,7 +67,7 @@ declare dl_log="logs/downloads.log"
 declare honssh_pid="honssh.pid"
 declare proddate="2014, March 1"
 declare author="Are Hansen"
-declare version="1.2.6-DEV"
+declare version="1.2.7"
 
 
 function cleanup_honssh()
@@ -190,6 +193,8 @@ function check_uid()
 
 function tail_log()
 {
+	cd /opt/honssh
+
     if [ ! -e "$1" ]
     then
         echo "$Script[$$]: Unable to locate $1"
