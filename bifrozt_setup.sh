@@ -61,6 +61,7 @@ function install_ansible()
     apt-add-repository ppa:ansible/ansible -y
     apt-get update &>/dev/null
     apt-get install ansible git openssh-server -y &>/dev/null
+    sed -i 's/#host_key_checking/host_key_checking/g' /etc/ansible/ansible.cfg
 }
 
 
