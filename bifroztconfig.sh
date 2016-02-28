@@ -32,7 +32,7 @@ declare hs_active_cfg="/opt/honssh/honssh.cfg"
 declare hs_default_cfg="/opt/honssh/honssh.cfg.default"
 declare created="2016, Feb 27"
 declare author="Are Hansen"
-declare version="0.0.2-DEVELOPMENT-VERSION"
+declare version="0.0.3-DEVELOPMENT-VERSION"
 
 
 # Configuration start message.
@@ -115,63 +115,35 @@ function configure_honssh()
     while [ -z "$ip_eth0" ]
     do
         read -p "Enter IPv4 address of eth0: " ip_eth0
+        echo -e "\nWriting configuration to $hs_active_cfg\n"
+        sed -i "s/IP_eth0/$ip_eth0/g" "$hs_active_cfg"
     done
 
     echo -e "\nEnter the IPv4 address of eth1, if you are using the default configuration it should be 192.168.27.1"
     while [ -z "$ip_eth1" ]
     do
-        read -p "Enter IPv4 address of eth0: " ip_eth1
+        read -p "Enter IPv4 address of eth1: " ip_eth1
+        echo -e "\nWriting configuration to $hs_active_cfg\n"
+        sed -i "s/IP_eth1/$ip_eth1/g" "$hs_active_cfg"
     done
 
     echo -e "\nEnter the IPv4 address of the honeypot, if you are using the default configuration it should be 192.168.27.200"
     while [ -z "$ip_honey" ]
     do
         read -p "Enter IPv4 address of the honeypot: " ip_honey
+        echo -e "\nWriting configuration to $hs_active_cfg\n"
+        sed -i "s/IP_HONEYPOT/$ip_honey/g" "$hs_active_cfg"
     done
 
     echo -e "\nSet a name for this instance (i.e. Bifrozt)"
     while [ -z "$sensor_name" ]
     do
         read -p "Instance name: " sensor_name
+        echo -e "\nWriting configuration to $hs_active_cfg\n"
+        sed -i "s/SENSOR_NAME/$sensor_name/g" "$hs_active_cfg"
     done
 
-    echo -e "\n\nHonSSH configuration summary\n"
-    while [ -z "$confirm_hs" ]
-    do
-        echo "IPv4 address eth0: $ip_eth0"
-        echo "IPv4 address eth1: $ip_eth1"
-        echo "IPv4 address honeypot: $ip_honey"
-        echo "Name of this instance: $sensor_name"
-        echo -e "\nIs this correct? "
-        while [ -z "$confirmed_hs" ]
-        do
-            read -p "Please answer YES or NO: " correct
-
-            if [ "$correct_hs" = "YES" ]
-            then
-                confirmed_hs="$correct_hs"
-                break
-            else
-                if [ "$correct_hs" = "NO" ]
-                then
-                    echo "Aborting configuration."
-                    confirmed_hs="$correct_hs"
-                    exit 1
-                fi
-            fi
-        done
-	confirm_hs="$correct"
-    done
-
-    echo -e "\nWriting configuration to $hs_active_cfg\n"
-    # DEV NOTES: Check for config tag first
-    sed -i "s/IP_eth0/$ip_eth0/g" "$hs_active_cfg"
-    # DEV NOTES: Check for config tag first
-    sed -i "s/IP_eth1/$ip_eth1/g" "$hs_active_cfg"
-    # DEV NOTES: Check for config tag first
-    sed -i "s/IP_HONEYPOT/$ip_honey/g" "$hs_active_cfg"
-    # DEV NOTES: Check for config tag first
-    sed -i "s/SENSOR_NAME/$sensor_name/g" "$hs_active_cfg"
+    echo -e "\n\nHonSSH configuration completed.\n"
 }
 
 
@@ -195,35 +167,11 @@ function configure_dhcpd()
     while [ -z "$honey_mac" ]
     do
         read -p "Enter MAC address (i.e. 0a:1b:2c:3d:4e:5f:60): " honey_mac
+        echo -e "\nWriting configuration to $dhcpd_conf\n"
+        sed -i "s/$replace_mac/$honey_mac/g" "$dhcpd_conf"
     done
 
-    echo -e "\n\nDHCP server configuration summary\n"
-    while [ -z "$confirm_dhcp" ]
-    do
-        echo "Replace MAC address: $replace_mac"
-        echo "With new MAC address: $honey_mac"        
-        echo -e "\nIs this correct? "
-        while [ -z "$confirmed_mac" ]
-        do
-            read -p "Please answer YES or NO: " correct_mac
-            if [ "$correct_mac" = "YES" ]
-            then
-                confirmed_mac="$correct_mac"
-                break
-            else
-                if [ "$correct_mac" = "NO" ]
-                then
-                    echo "Aborting configuration."
-                    confirmed_mac="$correct_mac"
-                    exit 1
-                fi
-            fi
-        done
-	confirm_dhcp="$correct_mac"
-    done
-
-    echo -e "\nWriting configuration to $dhcpd_conf\n"
-    sed -i "s/$replace_mac/$replace_mac/g" "$dhcpd_conf"
+    echo -e "\n\nDHCP server configuration completed\n"
 }
 
 
@@ -233,25 +181,20 @@ function configure_autostart()
     echo -e "\nDo you want to start HonSSH automatically at boot?"
     while [ -z "$confirm" ]
     do
-        while [ -z "$confirmed" ]
-        do
-            read -p "Please answer YES or NO: " correct
-            if [ "$correct" = "YES" ]
+        read -p "Please answer YES or NO: " correct
+        if [ "$correct" = "YES" ]
+        then
+            confirm="$correct"
+        else
+            if [ "$correct" = "NO" ]
             then
-                break
-            else
-                if [ "$correct" = "NO" ]
-                then
-                    echo "Aborting configuration."
-                    exit 1
-                fi
+                echo "Aborting configuration."
+                exit 1
             fi
-        done
-	confirm="$correct"
+        fi
     done
 
-    echo -e "\nWriting configuration to $dhcpd_conf\n"
-    # DEV NOTES: Check for config tag first
+    echo -e "\nWriting configuration to $rc_local\n"
     sed -i "s/#_#_#//g" "$rc_local"
 }
 

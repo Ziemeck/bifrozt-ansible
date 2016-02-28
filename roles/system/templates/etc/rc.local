@@ -12,6 +12,6 @@
 # By default this script does nothing.
 
 # --- UNCOMMENT TO START HONSSH AT BOOT
-# /bin/bash /usr/local/bin/honsshctrl daemon
+#_#_#/bin/bash /usr/local/bin/honsshctrl daemon
 
 exit 0
