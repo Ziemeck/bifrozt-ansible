@@ -50,6 +50,9 @@
 #
 #   - 1.2.7
 #   Corrected an issue where the script attempts to read files using the wrong path.
+#   Changed variables to use absolute path instead of relative.
+#   Enforcing test of log directory/file before attempting to read from it.
+#   Added short description to each function.
 #
 #   --------------------------------------------------------------
 #
@@ -58,29 +61,31 @@ set -e
 
 
 declare -rx Script="${0##*/}"
-declare honssh_tac="honssh.tac"
-declare id_rsa="id_rsa"
-declare id_dsa="id_dsa"
-declare honssh_log="logs/honssh.log"
-declare daily_log="logs/$(date +"%Y%m%d")"
-declare dl_log="logs/downloads.log"
-declare honssh_pid="honssh.pid"
+declare conf_dir="/opt/honssh"
+declare honssh_tac="$conf_dir/honssh.tac"
+declare id_rsa="$conf_dir/id_rsa"
+declare id_dsa="$conf_dir/id_dsa"
+declare honssh_log="$conf_dir/logs/honssh.log"
+declare daily_log="$conf_dir/logs/$(date +"%Y%m%d")"
+declare dl_log="$conf_dir/logs/downloads.log"
+declare honssh_pid="$conf_dir/honssh.pid"
 declare proddate="2014, March 1"
 declare author="Are Hansen"
 declare version="1.2.7"
 
 
+# Cleans out any stale pid files.
 function cleanup_honssh()
 {
     check_uid
 
-	cd /opt/honssh
+    cd "$conf_dir"
 
     if [ -e "$honssh_pid" ]
     then
         logger -p warn "$Script[$$]: Forcibly removing $honssh_pid"
         echo "$Script[$$]: Forcibly removing $honssh_pid"
-        sleep 2.5
+        sleep 0.5
         rm "$honssh_pid"
         logger -p warn "$Script[$$]: $honssh_pid has been removed."
         echo "$Script[$$]: $honssh_pid has been removed."
@@ -92,11 +97,12 @@ function cleanup_honssh()
 }
 
 
+# Starts HonSSH in the background, no output from logs.
 function start_daemon()
 {
     check_uid
 
-	cd /opt/honssh
+    cd "$conf_dir"
 
     if [ ! -e "$honssh_pid" ]
     then
@@ -109,11 +115,12 @@ function start_daemon()
 }
 
 
+# Starts HonSSH as a daemon, begins to tail the honssh.log.
 function start_honssh()
 {
     check_uid
 
-	cd /opt/honssh
+    cd "$conf_dir"
 
     if [ ! -e "$honssh_pid" ]
     then
@@ -130,11 +137,12 @@ function start_honssh()
 }
 
 
+# Stops HonSSH.
 function stop_honssh()
 {
     check_uid
 
-	cd /opt/honssh
+    cd "$conf_dir"
 
     if [ -e "$honssh_pid" ]
     then
@@ -159,11 +167,12 @@ function stop_honssh()
 }
 
 
+# Checks if the RSA and DSA keys are present, creates them if missing.
 function pki_check()
 {
     check_uid
 
-	cd /opt/honssh
+    cd "$conf_dir"
 
     if [ ! -e "$id_rsa" ]
     then
@@ -180,6 +189,7 @@ function pki_check()
 }
 
 
+# Checks if executing user has UID 0.
 function check_uid()
 {
     if [ "$(id -u)" != "0" ]
@@ -191,13 +201,19 @@ function check_uid()
 }
 
 
+# Takes path to a file as argument, starts active tail from the last 50 lines in file.
 function tail_log()
 {
-	cd /opt/honssh
+    cd "$conf_dir"
 
     if [ ! -e "$1" ]
     then
         echo "$Script[$$]: Unable to locate $1"
+        exit 1
+    fi
+    if [ ! -f "$1" ]
+    then
+        echo "$Script[$$]: ERROR: \"$1\" does not appears to be a file."
         exit 1
     else
         tail -f -n50 "$1"
@@ -205,6 +221,7 @@ function tail_log()
 }
 
 
+# Displays script help.
 function help_honssh()
 {
 echo "
@@ -240,6 +257,7 @@ echo "
 }
 
 
+# Arguments definition and checking.
 case "$1" in
     clean)
         cleanup_honssh
@@ -288,3 +306,4 @@ esac
 
 
 exit 0
+
