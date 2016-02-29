@@ -1,8 +1,10 @@
 ---
 # Clean up tasks
-- name: Removing contents of /root/.ssh
+- name: Removing all SSH keys and files that were used by Ansible 
   file: path={{ item }} state=absent
   with_items:
+  - /etc/ansible/BZKEY/id_rsa
+  - /etc/ansible/BZKEY/id_rsa.pub
   - /root/.ssh/authorized_keys
   - /root/.ssh/id_rsa
   - /root/.ssh/id_rsa.pub
