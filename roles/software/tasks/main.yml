@@ -8,6 +8,7 @@
 - name: Installing dependecies from official apt repo
   apt: name={{ item }} state=present
   with_items:
+   - athena-jot
    - git
    - htop
    - isc-dhcp-server
