@@ -24,46 +24,247 @@
 #   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
 #   WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+#   --------------------------------------------------------------
+#
+#   - 0.0.4-DEV
+#     * Check UID of executing user only when required.
+#     * Reconfiguration of administrative SSH port updates sshd_config and iptable rules
+#       can be done as a separate task.
+#     * Automatically generating a new internal subnet can now be done as a separate task.
+#     * Configure static IPv4 address for the honeypot.
+#     * Preform basic HonSSH configuration.
+#     * Enable/disable HonSSH to start automatically.
+#     * Create auto discovery of certain variables. 
 #
 #   --------------------------------------------------------------
 #
-#   --------------------------------------------------------------
 #
+
+
+set -e
+
+
+#
+#
+# ======================================================= Variable declaration.
+#
+#
+
+
 declare -rx Script="${0##*/}"
 declare rc_local="/etc/rc.local"
+declare sshd_conf="/etc/ssh/sshd_config"
 declare dhcpd_conf="/etc/dhcp/dhcpd.conf"
+declare ipv4_hater="/etc/network/ipv4hater"
+declare interfaces="/etc/network/interfaces"
 declare hs_active_cfg="/opt/honssh/honssh.cfg"
 declare hs_default_cfg="/opt/honssh/honssh.cfg.default"
-declare version="0.0.3-DEV"
 declare created="2016, Feb 27"
 declare author="Are Hansen"
+declare version="0.0.4-DEV"
 
 
-# Configuration start message.
-function start_msg()
+#
+#
+# ======================================================= Script assistive functions
+#
+#
+
+
+# Check for root.
+function check_uid()
+{
+    if [ "$(id -u)" != "0" ]
+    then
+        echo "$Script[$$]: You must execute $Script as root!"
+        exit 1
+    fi
+}
+
+
+# "Fancy" banner 
+function script_banner()
 {
 echo "
-    !!! WARNING = SCRIPT NOT SUITABLE FOR PRODUCTION = WARNING !!!
-    !!! WARNING = SCRIPT NOT SUITABLE FOR PRODUCTION = WARNING !!!
-    !!! WARNING = SCRIPT NOT SUITABLE FOR PRODUCTION = WARNING !!!
-
     ========= $Script - $version - $created - $author =========
-
-    You are about to configure some of the system object on this machine.
-
-    The following information should be avalible to you before starting this process.
-    - IPv4 address of both network interface cards on this machine.
-    - What you are going to name this instance.
-    - The MAC address from the honeypot.
-    - Decide if HonSSH should be started at boot time or not.
-
-    Your honeypot should be powered off while running this script.
-    The script can be exited at any time by pressing CTRL + C.
-
-    !!! WARNING = SCRIPT NOT SUITABLE FOR PRODUCTION = WARNING !!!
-    !!! WARNING = SCRIPT NOT SUITABLE FOR PRODUCTION = WARNING !!!
-    !!! WARNING = SCRIPT NOT SUITABLE FOR PRODUCTION = WARNING !!! 
 "
+}
+
+
+# Script help text.
+function script_help()
+{
+script_banner
+
+echo "
+    === System administrative tasks.
+
+    $Script system boot
+    - Enable/disable HonSSH to start at boot time.
+
+    $Script system ssh
+    - Change the port to wich Bifrozt administrators can connect.
+
+
+    === DHCP server configuration.
+
+    $Script dhcp mac
+    - Replace a MAC address in the current confguration.
+
+    $Script dhcp rfc1918
+    - Randomly generate a new RFC1918 network.
+
+
+    === HonSSH configuration.
+
+    $Script honssh conf
+    - Configure HonSSH. This will backup the current configuration and create a new
+      clean configuration file.
+"
+}
+
+
+# Finds IPv4 address of eth0
+function ipv4_eth0()
+{
+    ifconfig eth0 \
+    | grep 'inet addr:' \
+    | cut -d ':' -f2 \
+    | awk '{ print $1 }'
+}
+
+
+# Finds IPv4 address of eth1
+function ipv4_eth1()
+{
+    ifconfig eth1 \
+    | grep 'inet addr:' \
+    | cut -d ':' -f2 \
+    | awk '{ print $1 }'
+}
+
+
+#
+#
+# ======================================================= Bifrozt admin functions
+#
+#
+
+
+# Searches sshd_config and returns the port number that the local SSH server is running on.
+function locate_current_ssh()
+{
+    grep ^'Port' "$sshd_conf" \
+    | awk '{ print $2 }'
+}
+
+
+# Shows current admin port number and requests new. Replaces current with new.
+function admin_ssh()
+{
+    check_uid
+
+    script_banner
+
+    curr_ssh_port="$(locate_current_ssh)"
+
+    echo "You are about to change the administrative port for the local SSH server."
+    echo "The current port number is: $curr_ssh_port"
+
+    while [ -z "$new_ssh_port" ]
+    do
+        echo "Using a ephemeral port (49152–65535) is recommended."
+        read -p "Enter the new port number: " new_ssh_port
+    done
+
+    curr_fw_ssh="-A INPUT -i eth0 -p tcp -m tcp --dport $curr_ssh_port -j ACCEPT"
+    new_fw_ssh="-A INPUT -i eth0 -p tcp -m tcp --dport $new_ssh_port -j ACCEPT"
+
+    echo -e "\nUpdating SSH configuration..."
+    sed -i "s/$curr_ssh_port/$new_ssh_port/g" "$sshd_conf"
+
+    echo "Updating firewall configuration..."
+    sed -i "s/$curr_fw_ssh/$new_fw_ssh/g" "$ipv4_hater"
+
+    echo "All configuration files have been updated, restarting service to apply configuration now..."
+    service ssh restart
+    echo "SSH server has been restarted..."
+    iptables-apply "$ipv4_hater"
+}
+
+
+#
+#
+# ======================================================= DHCP server functions
+#
+#
+
+
+# Locates and retruns the current network name in the dhcpd.conf, excluding the last octet.
+function locate_current_network()
+{
+    grep ^'subnet' "$dhcpd_conf" \
+    | awk '{ print $2 }' \
+    | cut -d '.' -f1-3
+}
+
+
+# Returns the three first octets in the IPv4 of eth0
+function network_eth0()
+{
+    ipv4_eth0 \
+    | cut -d '.' -f1-3
+}
+
+
+# Randomly generates a new network to be used by the DHCP server and returns on of the RFC1918 types.
+function gen_new_network()
+{
+    echo -e "$RANDOM 10.$(jot -r 1 0 255).$(jot -r 1 0 255)\n$RANDOM 172.16.$(jot -r 1 0 255)\n$RANDOM 192.168.$(jot -r 1 0 255)" \
+    | sort -n \
+    | awk '{ print $2 }' \
+    | head -n1
+}
+
+
+# Replaces the current network thats provided by the DHCP server by a randomly generated one.
+function change_dhcp_network()
+{
+    check_uid
+
+    script_banner
+
+    echo "You are about to change the network thats provided by the DHCP server."
+    echo "The new network can be randomly generated by typing NEW or CRTL + C to abort."
+    while [ "$make_new" != "NEW" ]
+    do
+        read -p "To generate a new network, please type NEW: " make_new
+    done
+
+    curr_net="$(locate_current_network)"
+    new_net="$(gen_new_network)"
+
+    # If new_net overlaps with network of eth0,
+    if [ "$(network_eth0)" = "$new_net" ]
+    then
+        # generate a different new_net.
+        new_net="$(gen_new_network)"
+    fi
+
+    echo -e "\nGenerating new network..."
+    echo "Writing configuration to $dhcpd_conf"
+    sed -i "s/$curr_net/$new_net/g" "$dhcpd_conf"
+
+    echo "Writing configuration to $interfaces"
+    sed -i "s/$curr_net/$new_net/g" "$interfaces"
+
+    echo "Bringing down eth1..."
+    ifdown eth1
+    echo "Bringing eth1 up again..."
+    ifup eth1
+
+    echo "Restarting DHCP server..."
+    service isc-dhcp-server restart
 }
 
 
@@ -78,6 +279,53 @@ function locate_current_mac()
     | cut -d ';' -f1 \
     | cat -n
 }
+
+
+# Searches dhcpd.conf and returns any item thats in the location of where the IPv4 address
+# of the honeypot should be. The function expects only one address to be returned here.
+function locate_honey_ip()
+{
+    grep 'fixed-address' "$dhcpd_conf" \
+    | awk '{ print $2 }' \
+    | cut -d ';' -f1
+}
+
+
+# Configuration of the DHCP server.
+function change_dhcp_mac()
+{
+    check_uid
+
+    script_banner
+
+    echo "The DHCP server will make sure that the honeypot is always assigned the same IPv4 address."
+    echo -e "The following MAC address(es) were found in the current configuration:\n"
+
+    locate_current_mac
+
+    echo -e "\nWhat MAC address should be replaced by the one on your honeypot?"    
+    while [ -z "$replace_mac" ]
+    do
+        read -p "Enter MAC address (i.e. a0:b1:c2:d3:e4:f5:06): " replace_mac
+    done
+
+    echo -e "\nWhat is the MAC address of your honeypot?"
+    while [ -z "$honey_mac" ]
+    do
+        read -p "Enter MAC address (i.e. 0a:1b:2c:3d:4e:5f:60): " honey_mac
+        echo -e "\nWriting configuration to $dhcpd_conf\n"
+        sed -i "s/$replace_mac/$honey_mac/g" "$dhcpd_conf"
+    done
+
+    echo -e "\n\nDHCP server configuration completed\n"
+}
+
+
+#
+#
+# ======================================================= HonSSH functions
+#
+#
 
 
 # Creates a copy of honssh.cfg.default and renames it into honssh.cfg, this is the
@@ -111,136 +359,176 @@ function make_cfg_active()
 # Configuration of HonSSH.
 function configure_honssh()
 {
+    check_uid
+
+    script_banner
+
     make_cfg_active
 
-    echo -e "\n\n   ---------  HonSSH configuration ---------\n"
-
-    echo "Enter the IPv4 address of eth0, if its dynamically assigned enter 0.0.0.0"
+    echo "Enter the IPv4 address of eth0: $(ipv4_eth0)."
+    echo "If its dynamically assigned use: 0.0.0.0"
     while [ -z "$ip_eth0" ]
     do
         read -p "Enter IPv4 address of eth0: " ip_eth0
-        echo -e "\nWriting configuration to $hs_active_cfg\n"
-        sed -i "s/IP_eth0/$ip_eth0/g" "$hs_active_cfg"
     done
+    echo -e "\nWriting configuration to $hs_active_cfg\n"
+    sed -i "s/IP_eth0/$ip_eth0/g" "$hs_active_cfg"
 
-    echo -e "\nEnter the IPv4 address of eth1, if you are using the default configuration it should be 192.168.27.1"
-    while [ -z "$ip_eth1" ]
-    do
-        read -p "Enter IPv4 address of eth1: " ip_eth1
-        echo -e "\nWriting configuration to $hs_active_cfg\n"
-        sed -i "s/IP_eth1/$ip_eth1/g" "$hs_active_cfg"
-    done
+    ip_eth1="$(ipv4_eth1)"
+    echo "Found IPv4 of eth1: $ip_eth1"
+    echo "Writing IPv4 of eth1 to $hs_active_cfg\n"
+    sed -i "s/IP_eth1/$ip_eth1/g" "$hs_active_cfg"
 
-    echo -e "\nEnter the IPv4 address of the honeypot, if you are using the default configuration it should be 192.168.27.200"
+
+    honey_ip="$(locate_honey_ip)"
+    echo -e "\nEnter the IPv4 address of the honeypot."
+    echo "Received IPv4 address from the DHCP server that might be the honeypot: $honey_ip"
     while [ -z "$ip_honey" ]
     do
         read -p "Enter IPv4 address of the honeypot: " ip_honey
-        echo -e "\nWriting configuration to $hs_active_cfg\n"
-        sed -i "s/IP_HONEYPOT/$ip_honey/g" "$hs_active_cfg"
     done
+    echo -e "\nWriting configuration to $hs_active_cfg\n"
+    sed -i "s/IP_HONEYPOT/$ip_honey/g" "$hs_active_cfg"
 
     echo -e "\nSet a name for this instance (i.e. Bifrozt)"
     while [ -z "$sensor_name" ]
     do
         read -p "Instance name: " sensor_name
-        echo -e "\nWriting configuration to $hs_active_cfg\n"
-        sed -i "s/SENSOR_NAME/$sensor_name/g" "$hs_active_cfg"
     done
+    echo -e "\nWriting configuration to $hs_active_cfg\n"
+    sed -i "s/SENSOR_NAME/$sensor_name/g" "$hs_active_cfg"
 
-    echo -e "\n\nHonSSH configuration completed.\n"
 }
 
 
-# Configuration of the DHCP server.
-function configure_dhcpd()
+# Looks for the start up configuration and returns the first characther on that line.
+# Returning '/' suggests that HonSSH is set to start up at boot time, returning a '#'
+# suggests that starting HonSSH at boot time has been disabled. 
+function startup_state()
 {
-    echo -e "\n\n   ---------  DHCP server configuration ---------\n"
-
-    echo "The DHCP server will make sure that the honeypot is always assigned the same IPv4 address."
-    echo -e "The following MAC address(es) were found in the current configuration:\n"
-
-    locate_current_mac
-
-    echo -e "\nWhat MAC address should be replaced by the one on your honeypot?"    
-    while [ -z "$replace_mac" ]
-    do
-        read -p "Enter MAC address (i.e. a0:b1:c2:d3:e4:f5:06): " replace_mac
-    done
-
-    echo -e "\nWhat is the MAC address of your honeypot?"
-    while [ -z "$honey_mac" ]
-    do
-        read -p "Enter MAC address (i.e. 0a:1b:2c:3d:4e:5f:60): " honey_mac
-        echo -e "\nWriting configuration to $dhcpd_conf\n"
-        sed -i "s/$replace_mac/$honey_mac/g" "$dhcpd_conf"
-    done
-
-    echo -e "\n\nDHCP server configuration completed\n"
+    grep '/bin/bash /usr/local/bin/honsshctrl daemon' "$rc_local" \
+    | cut -c1
 }
 
 
-# Configure autostart of HonSSH
-function configure_autostart()
+# Enable/disable HonSSH to start autmatically.
+function start_at_boot()
 {
-    echo -e "\nDo you want to start HonSSH automatically at boot?"
-    while [ -z "$confirm" ]
-    do
-        read -p "Please answer YES or NO: " correct
-        if [ "$correct" = "YES" ]
+    check_uid
+
+    script_banner
+
+    state="$(startup_state)"
+    enabled='/bin/bash /usr/local/bin/honsshctrl daemon'
+    disabled='#_#_#/bin/bash /usr/local/bin/honsshctrl daemon'
+
+    if [ "$state" = "/" ]
+    then
+        echo "HonSSH is set to start autmatically."
+        while [ "$change_state" != "YES" ]
+        do
+            echo "Press CTRL + C to abort."
+            read -p "Enter YES to disable automatic start: " change_state
+        done
+
+        if [ "$change_state" = "YES" ]
         then
-            confirm="$correct"
-        else
-            if [ "$correct" = "NO" ]
-            then
-                echo "Aborting configuration."
-                exit 1
-            fi
+            sed -i "s/$enabled/$disabled/g" "$rc_local"
+            echo "Auto start of HonSSH has been disabled."
         fi
-    done
+    fi
 
-    echo -e "\nWriting configuration to $rc_local\n"
-    sed -i "s/#_#_#//g" "$rc_local"
+    if [ "$state" = "#" ]
+    then
+        echo "HonSSH is NOT set to start autmatically."
+        while [ "$change_state" != "YES" ]
+        do
+            echo "Press CTRL + C to abort."
+            read -p "Enter YES to enable automatic start: " change_state
+        done
+
+        if [ "$change_state" = "YES" ]
+        then
+            sed -i "s/$disabled/$enabled/g" "$rc_local"
+            echo "Auto start of HonSSH has been enabled."
+        fi
+    fi
+
 }
 
 
-# Configuration end message.
-function end_msg()
-{
-echo '
-    The configuration is now done, preform the following steps to complete it
-    - Reboot this machine.
-    - Start the honeypot
-    - If NOT starting HonSSH at boot time, execute the following command on this machine
-      sudo honsshctrl start
-'
-}
+#
+#
+# ======================================================= Script execution.
+#
+#
 
 
-# Call all configuration functions.
-function main()
-{
-    clear
-    start_msg
-    sleep 2
-    configure_honssh
-    configure_dhcpd
-    configure_autostart
-    end_msg
-}
-
-
-# Check for root.
-if [ "$(id -u)" != "0" ]
-then
-    echo "FAILURE: $Script requires root privileges. Please try again with:"
-    echo "sudo $Script"
-    exit 1
-fi
-
-
-# Begin execution.
-main
+# Arguments definition and checking.
+case "$1" in
+    system)
+        case "$2" in
+            boot)
+                ;;
+            ssh)
+                admin_ssh
+                ;;
+            *)
+                echo "Usage: $Script admin {boot|ssh}"
+                exit 1
+                ;;
+        esac
+        ;;
+    dhcp)
+        case "$2" in
+            mac)
+                change_dhcp_mac
+                ;;
+            rfc1918)
+                change_dhcp_network
+                ;;
+            *)
+                echo "Usage: $Script dhcp {mac|rfc1918}"
+                exit 1
+                ;;
+        esac
+        ;;
+    help)
+        script_help
+        ;;
+    honssh)
+        case "$2" in
+            conf)
+                configure_honssh
+                ;;
+            *)
+                echo "Usage: $Script honssh {conf}"
+                exit 1
+                ;;
+        esac
+        ;;
+    *)
+        echo "Usage: $Script {dhcp|help|honssh|system}"
+        exit 1
+        ;;
+esac
 
 
 exit 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
