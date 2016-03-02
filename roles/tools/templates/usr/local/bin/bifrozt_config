@@ -34,7 +34,15 @@
 #     * Configure static IPv4 address for the honeypot.
 #     * Preform basic HonSSH configuration.
 #     * Enable/disable HonSSH to start automatically.
-#     * Create auto discovery of certain variables. 
+#     * Create auto discovery of certain variables.
+#
+#   - 0.0.5
+#     * Changed the way new firewall rules were loaded.
+#     * Cosmetic changes to output.
+#     * Updating MAC address will occur when configuring HonSSH.
+#     * Restarting DHCP server after updating MAC address.
+#     * HonSSH is stopped sfter generating new DHCP network, the honssh.cfg is updated, all
+#       other services are started before HonSSH is started again.
 #
 #   --------------------------------------------------------------
 #
@@ -61,7 +69,7 @@ declare hs_active_cfg="/opt/honssh/honssh.cfg"
 declare hs_default_cfg="/opt/honssh/honssh.cfg.default"
 declare created="2016, Feb 27"
 declare author="Are Hansen"
-declare version="0.0.4-DEV"
+declare version="0.0.5"
 
 
 #
@@ -186,10 +194,12 @@ function admin_ssh()
     echo "Updating firewall configuration..."
     sed -i "s/$curr_fw_ssh/$new_fw_ssh/g" "$ipv4_hater"
 
-    echo "All configuration files have been updated, restarting service to apply configuration now..."
+    echo "All configuration files have been updated, restarting service(s) and applying configuration now..."
     service ssh restart
     echo "SSH server has been restarted..."
-    iptables-apply "$ipv4_hater"
+    iptables-restore < "$ipv4_hater"
+    echo "Firewall configuration has been updated and applied..."
+    echo -e "Done!\n"
 }
 
 
@@ -258,6 +268,11 @@ function change_dhcp_network()
     echo "Writing configuration to $interfaces"
     sed -i "s/$curr_net/$new_net/g" "$interfaces"
 
+    echo "Stopping HonSSH..."
+    /usr/local/bin/honsshctrl stop
+    echo "Updating honssh.cfg..."
+    sed -i "s/$curr_net/$new_net/g" "$hs_active_cfg"
+
     echo "Bringing down eth1..."
     ifdown eth1
     echo "Bringing eth1 up again..."
@@ -265,6 +280,11 @@ function change_dhcp_network()
 
     echo "Restarting DHCP server..."
     service isc-dhcp-server restart
+
+    echo "Starting HonSSH..."
+    /usr/local/bin/honsshctrl daemon
+
+    echo  -e "Done!\n"
 }
 
 
@@ -306,18 +326,20 @@ function change_dhcp_mac()
     echo -e "\nWhat MAC address should be replaced by the one on your honeypot?"    
     while [ -z "$replace_mac" ]
     do
-        read -p "Enter MAC address (i.e. a0:b1:c2:d3:e4:f5:06): " replace_mac
+        read -p "Enter MAC address to replace: " replace_mac
     done
 
     echo -e "\nWhat is the MAC address of your honeypot?"
     while [ -z "$honey_mac" ]
     do
-        read -p "Enter MAC address (i.e. 0a:1b:2c:3d:4e:5f:60): " honey_mac
-        echo -e "\nWriting configuration to $dhcpd_conf\n"
-        sed -i "s/$replace_mac/$honey_mac/g" "$dhcpd_conf"
+        read -p "Enter MAC address of honeypot: " honey_mac
     done
 
-    echo -e "\n\nDHCP server configuration completed\n"
+    echo -e "\nWriting configuration to $dhcpd_conf\n"
+    sed -i "s/$replace_mac/$honey_mac/g" "$dhcpd_conf"
+    echo "Restarting DHCP server"
+    service isc-dhcp-server restart
+    echo -e "Done!\n"
 }
 
 
@@ -361,7 +383,7 @@ function configure_honssh()
 {
     check_uid
 
-    script_banner
+    change_dhcp_mac
 
     make_cfg_active
 
@@ -371,33 +393,34 @@ function configure_honssh()
     do
         read -p "Enter IPv4 address of eth0: " ip_eth0
     done
-    echo -e "\nWriting configuration to $hs_active_cfg\n"
+    echo -e "\nWriting configuration to honssh.cfg\n"
     sed -i "s/IP_eth0/$ip_eth0/g" "$hs_active_cfg"
 
     ip_eth1="$(ipv4_eth1)"
     echo "Found IPv4 of eth1: $ip_eth1"
-    echo "Writing IPv4 of eth1 to $hs_active_cfg\n"
+    echo -e "Writing IPv4 of eth1 to honssh.cfg\n"
     sed -i "s/IP_eth1/$ip_eth1/g" "$hs_active_cfg"
 
 
     honey_ip="$(locate_honey_ip)"
     echo -e "\nEnter the IPv4 address of the honeypot."
-    echo "Received IPv4 address from the DHCP server that might be the honeypot: $honey_ip"
+    echo "Found IPv4 address in dhcpd.conf that might be the honeypot: $honey_ip"
     while [ -z "$ip_honey" ]
     do
-        read -p "Enter IPv4 address of the honeypot: " ip_honey
+        read -p "Enter the IPv4 address of the honeypot: " ip_honey
     done
-    echo -e "\nWriting configuration to $hs_active_cfg\n"
+    echo -e "\nWriting configuration to honssh.cfg\n"
     sed -i "s/IP_HONEYPOT/$ip_honey/g" "$hs_active_cfg"
 
-    echo -e "\nSet a name for this instance (i.e. Bifrozt)"
+    echo -e "Set a name for this instance (i.e. Bifrozt)"
     while [ -z "$sensor_name" ]
     do
         read -p "Instance name: " sensor_name
     done
-    echo -e "\nWriting configuration to $hs_active_cfg\n"
+    echo -e "\nWriting configuration to honssh.cfg\n"
     sed -i "s/SENSOR_NAME/$sensor_name/g" "$hs_active_cfg"
 
+    echo -e "Done!\n"
 }
 
 
@@ -515,20 +538,5 @@ esac
 
 
 exit 0
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
