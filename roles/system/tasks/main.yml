@@ -12,7 +12,7 @@
   file: path=/etc/sysctl.conf owner=root group=root mode=0600
 
 - name: Creating rsyslog for iptables
-  template: src=etc/rsyslog.d/13-iptables dest=/etc/rsyslog.d/13-iptables
+  template: src=etc/rsyslog.d/13-iptables dest=/etc/rsyslog.d/13-iptables.conf
 
 - name: Setting permissions on /etc/rsyslog.d/13-iptables
   file: path=/etc/rsyslog.d/13-iptables owner=root group=root mode=0644
