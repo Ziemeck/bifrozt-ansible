@@ -14,8 +14,8 @@
 - name: Creating rsyslog for iptables
   template: src=etc/rsyslog.d/13-iptables.conf dest=/etc/rsyslog.d/13-iptables.conf
 
-- name: Setting permissions on /etc/rsyslog.d/13-iptables
-  file: path=/etc/rsyslog.d/13-iptables owner=root group=root mode=0644
+- name: Setting permissions on /etc/rsyslog.d/13-iptables.conf
+  file: path=/etc/rsyslog.d/13-iptables.conf owner=root group=root mode=0644
 
 - name: Setting custom interval for rotating firewall.log
   template: src=var/spool/cron/crontabs/root dest=/var/spool/cron/crontabs/root 
