@@ -51,14 +51,15 @@
 #   - 0.0.5
 #     * Makes HonSSH configuration active.
 #
-#   -------------------------------------------------------------- DEV NOTES
+#   - 0.0.6
+#     * Added tests to prevent script from failing due to missing files and
+#       directories.
+#     * Script will begin and end with a clean up function that will purge
+#       obsolete software and Git repos from the system.
+#     * The script will delete itself when all functions have been executed.
 #
-#   - if playbook exits with zero
-#     - generate random rfc1918 network
-#     - wget and run mhsc.sh
-#     - run HonSSH setup
-#     - set administrative SSH port
-#     - reboot
+#   --------------------------------------------------------------
+#
 #
 set -e
 declare -rx Script="${0##*/}"
@@ -76,7 +77,7 @@ declare dst_bzans="/tmp/bifrozt-ansible"
 declare bz_key="/etc/ansible/BZKEY"
 declare created="2016, Feb 24"
 declare author="Are Hansen"
-declare version="0.0.5"
+declare version="0.0.6"
 
 
 # Nothing to see here, just a script banner.
@@ -139,6 +140,48 @@ function ipv4_if()
 }
 
 
+# Checks if the system has a previously downloaded bifrozt-ansible repo, Ansible SSH keys,
+# root autorized_keys, Ansible PPA or fi Ansible is installed. Any of these items will be
+# purged from the system before the setup will comence.
+function verify_clean()
+{
+    
+    if [ -e "$dst_bzans" ]
+    then
+        time_stamp "Removing existing \"bifrozt-ansible\" repo."
+        rm -rf "$dst_bzans"
+        time_stamp "Existing repo was removed..."
+    fi
+
+    if [ -e "$bz_key" ]
+    then
+        rm -rf "$bz_key"
+        time_stamp "Removing Ansible SSH keys..."
+    fi
+
+    if [ -e "/root/.ssh/authorized_keys" ]
+    then
+        rm "/root/.ssh/authorized_keys"
+        time_stamp "Removed /root/.ssh/authorized_keys..."
+    fi
+
+    if [ -e "/etc/ansible" ]
+    then
+        time_stamp "Ansible is being removed from this system..."
+        apt-get remove ansible -y &>/dev/null
+        apt-get purge ansible -y &>/dev/null
+        rm -rf "/etc/ansible"
+    fi
+
+    if [ -e "/etc/apt/sources.list.d/ansible-ansible-trusty.list" ]
+    then
+        time_stamp "Removing Ansible PPA..."
+        add-apt-repository --remove ppa:ansible/ansible -y &>/dev/null
+        rm "/etc/apt/sources.list.d/ansible-ansible-trusty.list"
+    fi
+}
+
+
 # Update system, add Ansible PPA, install ansible and configure Ansible host key checking.
 function apt_get_things()
 {
@@ -155,7 +198,14 @@ function apt_get_things()
     time_stamp "Installing Ansible... "
     apt-get update &>/dev/null
     apt-get install ansible  -y &>/dev/null
-    sed -i 's/#host_key_checking/host_key_checking/g' "$ansible_cfg"
+
+    if [ ! -e "$ansible_cfg" ]
+    then
+        time_stamp "$FUNCNAME-ERROR: $ansible_cfg was not found"
+        exit 1
+    else
+        sed -i 's/#host_key_checking/host_key_checking/g' "$ansible_cfg"
+    fi
 }
 
 
@@ -198,15 +248,23 @@ function gen_ssh_keys()
     then
         time_stamp "FAIL: id_rsa.pub not found in expected location."
     	exit 1
-    else
-        time_stamp "Setting up authentication key for root user (will be removed later)..."
-        cat "$bz_key/id_rsa.pub" > "/root/.ssh/authorized_keys"
-    	chmod 0600 "$bz_key/id_rsa.pub"
-
-        curr_str="#private_key_file = \/path\/to\/file"
-        keys_str="private_key_file = \/etc\/ansible\/BZKEY\/id_rsa"
-        sed -i "s/$curr_str/$keys_str/g" "$ansible_cfg"
     fi
+
+    if [ ! -d "/root/.ssh" ]
+    then
+        time_stamp "Unable to find \"/root/.ssh\", creating it now..."
+        mkdir "/root/.ssh"
+        chmod 0700 "/root/.ssh"
+        chown -R root:root "/root/.ssh"
+    fi
+
+    time_stamp "Setting up authentication key for root user (will be removed later)..."
+    cat "$bz_key/id_rsa.pub" > "/root/.ssh/authorized_keys"
+    chmod 0600 "$bz_key/id_rsa.pub"
+
+    curr_str="#private_key_file = \/path\/to\/file"
+    keys_str="private_key_file = \/etc\/ansible\/BZKEY\/id_rsa"
+    sed -i "s/$curr_str/$keys_str/g" "$ansible_cfg"
 }
 
 
@@ -318,6 +376,18 @@ function setup_dhcp()
 # Chooses a new SSH port for Bifrozt administration at random.
 function conf_new_ssh()
 {
+    if [ ! -e "$sshd_conf" ]
+    then
+        time_stamp "$FUNCNAME-ERROR: $sshd_conf was not found."
+        exit 1
+    fi
+
+    if [ ! -e "$ipv4_hater" ]
+    then
+        time_stamp "$FUNCNAME-ERROR: No firewall rule set was not found."
+        exit 1
+    fi
+
     time_stamp "Selecting a new SSH port for Bifrozt administration..."
 
     new_ssh_port="$(jot -r 1 49152 65535)"
@@ -333,7 +403,8 @@ function conf_new_ssh()
     sed -i "s/$curr_fw_ssh/$new_fw_ssh/g" "$ipv4_hater"
 
     time_stamp "Restarting SSH server..."
-    service ssh restart &>/dev/null
+    service ssh stop &>/dev/null
+    service ssh start &>/dev/null
     time_stamp "The SSH server is now running on TCP port: $new_ssh_port"
     time_stamp "Applying new firewall rules..."
     iptables-restore < "$ipv4_hater"
@@ -372,7 +443,7 @@ function main()
     then
         time_stamp "Are we root?...Yes"
     else
-        time_stamp "FAIL: YOU.MUST.BE.ROOT. $Script stopping execution."
+        time_stamp "FATAL-ERROR: YOU.ARE.NOT.ROOT."
         exit 1
     fi
 
@@ -392,18 +463,21 @@ function main()
         exit 1
     fi
 
+    verify_clean
     apt_get_things
     git_clone "$git_bzans" "$dst_bzans"
     gen_ssh_keys "$bz_key"
     run_play "$dst_bzans/playbook.yml" "$dst_bzans/hosts"
     setup_dhcp "$1"
     conf_new_ssh
+    verify_clean
     time_stamp "$Script has completed its execution. Do the following:"
     time_stamp "Note what port SSH is running on."
     time_stamp "If the honeypot is running, shut it off."
     time_stamp "Reboot Bifrozt (this machine)."
     time_stamp "Start the honeypot machine once Bifrozt is rebooted."
     time_stamp "Start HonSSH with: sudo honsshctrl start."
+    rm "$0"
 }
 
 
