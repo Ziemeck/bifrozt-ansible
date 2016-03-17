@@ -1,0 +1,43 @@
+--- # Bifrozt tools
+- name: Preparing to install custom Python modules
+  file: path=/usr/lib/python2.7/dist-packages/bzlib state=directory owner=root group=root mode=0755
+
+- name: Installing Python modules
+  template: src={{ item.src }} dest={{ item.dest }}
+  with_items:
+    - { src: 'usr/lib/python2.7/dist-packages/bzlib/__init__.py', dest: '/usr/lib/python2.7/dist-packages/bzlib/__init__.py' } 
+    - { src: 'usr/lib/python2.7/dist-packages/bzlib/files.py', dest: '/usr/lib/python2.7/dist-packages/bzlib/files.py' }
+    - { src: 'usr/lib/python2.7/dist-packages/bzlib/geoloc.py', dest: '/usr/lib/python2.7/dist-packages/bzlib/geoloc.py' }
+    - { src: 'usr/lib/python2.7/dist-packages/bzlib/sendto.py', dest: '/usr/lib/python2.7/dist-packages/bzlib/sendto.py' }
+
+- name: Installing auth_info
+  template: src=usr/local/bin/auth_info dest=/usr/local/bin/auth_info
+
+- name: Setting permissions on auth_info
+  file: path=/usr/local/bin/auth_info owner=root group=root mode=0755
+
+- name: Installing bifrozt_config
+  template: src=usr/local/bin/bifrozt_config dest=/usr/local/bin/bifrozt_config
+
+- name: Setting permissions on bifrozt_config
+  file: path=/usr/local/bin/bifrozt_config owner=root group=root mode=0755
+
+- name: Preparing to download GeoLite2-City database from Maxmind
+  file: path=/etc/geoip2 state=directory owner=root group=root mode=0755
+
+- name: Removing default honsshctrl.sh
+  file: path=/opt/honssh/honsshctrl.sh state=absent
+
+- name: Installing custom honsshctrl
+  template: src=usr/local/bin/honsshctrl dest=/usr/local/bin/honsshctrl
+
+- name: Setting permissions on /usr/local/bin/honsshctrl
+  file: path=/usr/local/bin/honsshctrl owner=root group=root mode=0755
+
+- name: Installing latests version of GeoLite2-City database from Maxmind
+  get_url: url=http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz dest=/etc/geoip2/GeoLite2-City.mmdb.gz mode=0644
+
+- name: Unpacking GeoLite2-City database from Maxmind
+  command: gunzip /etc/geoip2/GeoLite2-City.mmdb.gz
+
+

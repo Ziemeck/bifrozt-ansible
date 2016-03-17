@@ -1,0 +1,7 @@
+--- # HonSSH role
+- name: Cloning the latest version of HonSSH
+  git: repo=https://github.com/Bifrozt/honssh.git dest=/opt/honssh
+
+- name: Removing default honsshctrl.sh
+  file: path=/opt/honssh/honsshctrl.sh state=absent
+

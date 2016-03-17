@@ -1,28 +1,10 @@
-# bifrozt-ansible
+### bifrozt-ansible
 
 ---
 
-Aplha version. It will be updated. 
+**NOTE**: The documentation fo this project is not yet complete, thank you for the patience.
 
-!INFO
-
-All files have .bifrozt
-Its for testing. If you want deploy pls change dest file name in /roles/bifrozt/tasks/main.yml
+Please see the [**installation page**](http://bifrozt.github.io/bifrozt-ansible/) for details about deploying Bifrozt.
+If you are new to the concept of honeypots, please read [**this document**](https://github.com/Bifrozt/bifrozt-ansible/wiki/Risks.).
 
 ---
-TO DO 
-
-- Installation script
-- Configuration HonSSH
----
-
-Requierments
-- Ubuntu 12.04/Debian 7 or newer
-- 2 GB free space
-- 512 MB memory
-- 2 NIC
-
----
-
-The project is based on the work of Are Hansen on Bifrozt 
-https://github.com/Bifrozt/ALPHA

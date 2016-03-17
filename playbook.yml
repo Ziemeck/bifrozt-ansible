@@ -1,0 +1,12 @@
+---
+# Converts a Ubuntu into a honeypot router
+- name: Converting system into a honeypot router
+  hosts: bifrozt
+  remote_user: root
+  roles:
+   - software
+   - system
+   - network
+   - honssh
+   - tools
+   - cleanup

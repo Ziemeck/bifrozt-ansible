@@ -1,0 +1,34 @@
+--- # System configuration
+- name: Creating logrotation for /var/log/firewall.log
+  template: src=etc/logrotate.d/iptables dest=/etc/logrotate.d/iptables
+
+- name: Setting permissions on /etc/logrotate.d/iptables
+  file: path=/etc/logrotate.d/iptables owner=root group=root mode=0644
+
+- name: Costumizing sysctl.conf
+  template: src=etc/sysctl.conf dest=/etc/sysctl.conf
+
+- name: Setting permissions on /etc/sysctl.conf
+  file: path=/etc/sysctl.conf owner=root group=root mode=0600
+
+- name: Creating rsyslog for iptables
+  template: src=etc/rsyslog.d/13-iptables.conf dest=/etc/rsyslog.d/13-iptables.conf
+
+- name: Setting permissions on /etc/rsyslog.d/13-iptables.conf
+  file: path=/etc/rsyslog.d/13-iptables.conf owner=root group=root mode=0644
+
+- name: Setting custom interval for rotating firewall.log
+  template: src=var/spool/cron/crontabs/root dest=/var/spool/cron/crontabs/root 
+
+- name: Setting correct permissions on /var/log/firewall.log
+  file: path=/var/log/firewall.log state=touch owner=syslog group=adm mode=0644
+
+- name: Setting permissions on /var/spool/cron/crontabs/root
+  file: path=/var/spool/cron/crontabs/root owner=root group=root mode=0600
+
+- name: Preparing HonSSH to start at boot
+  template: src=etc/rc.local dest=/etc/rc.local
+
+- name: Setting permissions on /etc/rc.local
+  file: path=/etc/rc.local owner=root group=root mode=0755
+

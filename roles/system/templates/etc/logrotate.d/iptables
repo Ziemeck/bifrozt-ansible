@@ -1,0 +1,13 @@
+/var/log/firewall.log
+{
+        rotate 14
+        size 100M
+        copytruncate
+        nocompress
+        sharedscripts
+        postrotate
+        touch /var/log/firewall.log
+        invoke-rc.d rsyslog reload >/dev/null 2>&1 || true
+        endscript
+        su root adm
+}
